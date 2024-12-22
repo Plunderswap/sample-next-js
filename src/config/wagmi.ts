@@ -24,8 +24,9 @@ const connectors = connectorsForWallets(
     },
   ],
   {
-    appName: "Zilnames",
-    projectId: "9d186193dfaff4c4e4c827ab98d36580",
+    // TODO: Update app name and project id from walletconnect dashboard
+    appName: "YOU APP NAME HERE",
+    projectId: "YOUR PROJECT ID HERE",
   }
 );
 
