@@ -1,6 +1,13 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Prerequisites
+
+- Node.js 18.19.0
+- npm 10.1.0
+
 ## Getting Started
+
+npm install
 
 First, run the development server:
 
