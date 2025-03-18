@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ConnectWalletButton } from "./ConnectButton";
-import { NetworkSelector } from "./NetworkSelector";
 
 export default function Header() {
   return (
@@ -9,7 +8,6 @@ export default function Header() {
         Sample header
       </div>
       <div className="flex items-center gap-4">
-        <NetworkSelector />
         <ConnectWalletButton />
       </div>
     </header>

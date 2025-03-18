@@ -17,6 +17,7 @@
     "@radix-ui/react-tooltip": "^1.1.4",
     "@rainbow-me/rainbowkit": "^2.2.0",
     "@tanstack/react-query": "^5.60.5",
+    "@zilliqa-js/zilliqa": "^3.4.4",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "dd-trace": "^5.27.1",

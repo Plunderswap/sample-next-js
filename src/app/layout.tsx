@@ -5,7 +5,6 @@ import { headers } from "next/headers";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Source_Code_Pro } from "next/font/google";
-
 const sourceCodePro = Source_Code_Pro({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
