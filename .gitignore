@@ -41,3 +41,5 @@ yarn-error.log*
 next-env.d.ts
 
 .specstory
+# SpecStory explanation file
+.specstory/.what-is-this.md
