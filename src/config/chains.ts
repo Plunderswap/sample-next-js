@@ -13,10 +13,10 @@ export const zilliqa = defineChain({
   },
   contracts: {
     ensUniversalResolver: {
-      address: "0x0000000000000000000000000000000000000000",
+      address: "0xe32A0F3e3787B535719e8949Eb065F675eB96D25",
     },
     ensRegistry: {
-      address: "0x0000000000000000000000000000000000000000",
+      address: "0x2196b67Ca97bBcA07C01c7Bdf4f35209CC615389",
     },
     multicall3: {
       address: "0x38899efb93d5106d3adb86662c557f237f6ecf57",
