@@ -3,20 +3,38 @@ import { useEffect, useState } from 'react';
 import Jazzicon, { jsNumberForAddress } from "react-jazzicon";
 import { AvatarComponent } from '@rainbow-me/rainbowkit';
 import { Address } from 'viem';
-import useZilEnsAvatar from '@/lib/hooks/useZilEnsAvatar';
-import { useChainId } from 'wagmi';
+import { useChainId, useEnsAvatar, useEnsName } from 'wagmi';
+import { zilliqa } from '@/config/chains'; // Import Zilliqa chain config
 
 export const CustomAvatar: AvatarComponent = ({ address, size }) => {
   const chainId = useChainId();
-  const { avatar, isLoading } = useZilEnsAvatar({ 
-    address: address as Address,
-    chainId 
-  });
   const [imageError, setImageError] = useState(false);
-  
+
+  // 1. Fetch ENS name for the address on the Zilliqa chain
+  const { data: ensName, isLoading: isNameLoading } = useEnsName({
+    address: address as Address,
+    chainId: zilliqa.id,
+    query: {
+      enabled: chainId === zilliqa.id, // Correctly placed inside query options
+    }
+  });
+
+  // 2. Fetch ENS avatar using the fetched name, only if on Zilliqa chain and name exists
+  const { data: ensAvatar, isLoading: isAvatarLoading } = useEnsAvatar({
+    name: ensName!, 
+    chainId: zilliqa.id, 
+    query: {
+      enabled: !!ensName && chainId === zilliqa.id, // Correctly placed inside query options
+    }
+  });
+
   useEffect(() => {
     setImageError(false);
   }, [address, chainId]);
+
+  // Determine final avatar and loading state
+  const avatar = chainId === zilliqa.id ? ensAvatar : null;
+  const isLoading = chainId === zilliqa.id ? (isNameLoading || isAvatarLoading) : false;
 
   if (!isLoading && avatar && !imageError) {
     return (
@@ -29,7 +47,7 @@ export const CustomAvatar: AvatarComponent = ({ address, size }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: '#1a1b1f'
+          backgroundColor: '#1a1b1f' // Keep background for potential transparent images
         }}
       >
         <img
@@ -48,6 +66,7 @@ export const CustomAvatar: AvatarComponent = ({ address, size }) => {
     );
   }
   
+  // Fallback to Jazzicon
   return (
     <div style={{ 
       width: size, 

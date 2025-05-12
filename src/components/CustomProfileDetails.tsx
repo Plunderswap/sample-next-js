@@ -2,7 +2,7 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { useAccount, useBalance, useChainId } from 'wagmi';
 import { toBech32Address } from "@zilliqa-js/crypto";
 import { formatUnits } from 'viem';
-import { getRoundedAmount } from '../lib/utils/getRoundedAmount';
+import { getRoundedAmount } from '@/lib/utils';
 import Name from './Name';
 
 interface CustomProfileDetailsProps {

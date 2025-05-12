@@ -1,8 +1,8 @@
 'use client';
 import { Address } from 'viem';
-import useZilliqaEnsName from '@/lib/hooks/useZilliqaEnsName';
-import useZilEnsAvatar from '@/lib/hooks/useZilEnsAvatar';
-import Jazzicon, { jsNumberForAddress } from "react-jazzicon";
+import { useEnsName } from 'wagmi';
+import { zilliqa } from '@/config/chains';
+import { CustomAvatar } from './CustomAvatar';
 
 interface NameProps {
   address?: Address;
@@ -13,32 +13,22 @@ interface NameProps {
 }
 
 export default function Name({ address, chainId, className, showAvatar = true, hideAddress = false }: NameProps) {
-  console.log('Name component props:', { address, chainId });
-  
-  const { name, isLoading: isNameLoading } = useZilliqaEnsName({ address, chainId });
-  const { avatar, isLoading: isAvatarLoading } = useZilEnsAvatar({ address, chainId });
+  const { data: name, isLoading: isNameLoading } = useEnsName({
+    address: address as Address,
+    chainId: zilliqa.id,
+    query: {
+      enabled: !!address && chainId === zilliqa.id,
+    }
+  });
 
-  console.log('Name component results:', { name, avatar });
+  console.log('Name component ENS result:', { name });
 
   if (!address) return null;
 
   return (
     <div className="flex items-center gap-2">
       {showAvatar && (
-        <div className="wallet-avatar">
-          {avatar && !isAvatarLoading ? (
-            <img 
-              src={avatar} 
-              alt={name || address} 
-              className="w-4 h-4 rounded-full object-cover"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          ) : (
-            <Jazzicon diameter={16} seed={jsNumberForAddress(address)} />
-          )}
-        </div>
+        <CustomAvatar address={address as Address} size={16} />
       )}
       <span className={className}>
         {!isNameLoading && name ? name : (!hideAddress ? `${address.slice(0, 6)}...${address.slice(-4)}` : '')}

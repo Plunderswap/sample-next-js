@@ -45,7 +45,7 @@ const connectors = connectorsForWallets(
     },
   ],
   {
-    appName: "Kalijo ($Seed) Staking",
+    appName: "Sample Site",
     projectId: "98fecff84cceff3d2f37dab2d8c86234",
   }
 );

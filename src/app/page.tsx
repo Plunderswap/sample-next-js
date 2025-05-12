@@ -1,197 +1,344 @@
 'use client';
-
 import { useState, useEffect } from 'react';
-import { isAddress } from 'viem';
+import { Address, isAddress, createPublicClient, http, toHex } from 'viem';
+import { getEnsAddress, getEnsName, normalize, packetToBytes, getEnsAvatar } from 'viem/ens';
 import { zilliqa } from '@/config/chains';
-import useZilliqaEnsName from '@/lib/hooks/useZilliqaEnsName';
-import useZilEnsAvatar from '@/lib/hooks/useZilEnsAvatar';
-import useZilliqaEnsAddress from '@/lib/hooks/useZilliqaEnsAddress';
-import Image from 'next/image';
+import { formatUnits } from 'viem';
+
+// Viem public client for Zilliqa mainnet
+const viemClient = createPublicClient({
+  chain: zilliqa,
+  transport: http(),
+});
 
 export default function Home() {
-  // Name to Address state
+  // Name to Address state (using Viem)
   const [nameInput, setNameInput] = useState('');
-  const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
-  const [nameError, setNameError] = useState<string | null>(null);
-  const [shouldResolveAddress, setShouldResolveAddress] = useState(false);
-  
-  // Address to Name state
+  const [viemResolvedAddress, setViemResolvedAddress] = useState<string | null>(null);
+  const [viemNameError, setViemNameError] = useState<string | null>(null);
+  const [isLoadingViemEnsAddress, setIsLoadingViemEnsAddress] = useState(false);
+  const [viemNameAvatar, setViemNameAvatar] = useState<string | null>(null);
+  const [showViemNameAvatar, setShowViemNameAvatar] = useState(false);
+  const [isLoadingViemNameAvatar, setIsLoadingViemNameAvatar] = useState(false);
+
+  // Address to Name state (using Viem)
   const [addressInput, setAddressInput] = useState('');
-  const [resolvedName, setResolvedName] = useState<string | null>(null);
-  const [addressError, setAddressError] = useState<string | null>(null);
-  const [shouldResolveName, setShouldResolveName] = useState(false);
+  const [viemResolvedName, setViemResolvedName] = useState<string | null>(null);
+  const [viemAddressError, setViemAddressError] = useState<string | null>(null);
+  const [isLoadingViemEnsName, setIsLoadingViemEnsName] = useState(false);
+  const [viemAddressAvatar, setViemAddressAvatar] = useState<string | null>(null);
+  const [showViemAddressAvatar, setShowViemAddressAvatar] = useState(false);
+  const [isLoadingViemAddressAvatar, setIsLoadingViemAddressAvatar] = useState(false);
 
-  // Avatar state
-  const [showAddressAvatar, setShowAddressAvatar] = useState(false);
-  const [showNameAvatar, setShowNameAvatar] = useState(false);
+  // ERC20 Token Details state
+  const [tokenAddressInput, setTokenAddressInput] = useState('');
+  const [tokenDetails, setTokenDetails] = useState<{ name: string | null; symbol: string | null; decimals: number | null; totalSupply: string | null; } | null>(null);
+  const [isLoadingTokenDetails, setIsLoadingTokenDetails] = useState(false);
+  const [tokenDetailsError, setTokenDetailsError] = useState<string | null>(null);
 
-  // ENS name to address resolution - using our custom Zilliqa hook
-  const { 
-    address: ensAddress, 
-    isLoading: isLoadingEnsAddress, 
-    error: errorEnsAddress 
-  } = useZilliqaEnsAddress({
-    name: shouldResolveAddress ? nameInput.trim() : undefined,
-    chainId: zilliqa.id,
-  });
+  // Minimal ERC20 ABI for fetching details
+  const erc20Abi = [
+    {
+      inputs: [],
+      name: 'name',
+      outputs: [{ name: '', type: 'string' }],
+      stateMutability: 'view',
+      type: 'function',
+    },
+    {
+      inputs: [],
+      name: 'symbol',
+      outputs: [{ name: '', type: 'string' }],
+      stateMutability: 'view',
+      type: 'function',
+    },
+    {
+      inputs: [],
+      name: 'decimals',
+      outputs: [{ name: '', type: 'uint8' }],
+      stateMutability: 'view',
+      type: 'function',
+    },
+    {
+      inputs: [],
+      name: 'totalSupply',
+      outputs: [{ name: '', type: 'uint256' }],
+      stateMutability: 'view',
+      type: 'function',
+    },
+  ] as const;
 
-  // Address to ENS name resolution - using Zilliqa-specific hook
-  const { 
-    name: ensName, 
-    isLoading: isLoadingEnsName 
-  } = useZilliqaEnsName({
-    // Only provide an address when we want to resolve
-    address: shouldResolveName && isAddress(addressInput.trim()) 
-      ? addressInput.trim() as `0x${string}` 
-      : undefined,
-    chainId: zilliqa.id,
-  });
-
-  // Avatar lookup for an address
-  const {
-    avatar: addressAvatar,
-    isLoading: isLoadingAddressAvatar
-  } = useZilEnsAvatar({
-    address: showAddressAvatar && isAddress(addressInput.trim())
-      ? addressInput.trim() as `0x${string}`
-      : undefined,
-    chainId: zilliqa.id
-  });
-
-  // Avatar lookup for a name
-  const {
-    avatar: nameAvatar,
-    isLoading: isLoadingNameAvatar
-  } = useZilEnsAvatar({
-    address: showNameAvatar && resolvedAddress 
-      ? resolvedAddress as `0x${string}`
-      : undefined,
-    chainId: zilliqa.id
-  });
-
-  // Handle name to address resolution
-  const handleResolveAddress = () => {
-    setResolvedAddress(null);
-    setNameError(null);
-    setShowNameAvatar(false);
+  // Handle name to address resolution (using Viem)
+  const handleResolveAddress = async () => {
+    // Reset Viem states
+    setViemResolvedAddress(null);
+    setViemNameError(null);
+    setViemNameAvatar(null);
+    setShowViemNameAvatar(false);
     
     const trimmedName = nameInput.trim();
     setNameInput(trimmedName);
 
     if (!trimmedName) {
-      setNameError('Please enter an ENS name.');
+      setViemNameError('Please enter an ENS name.');
       return;
     }
     
-    // Trigger resolution
-    setShouldResolveAddress(true);
-    console.log('Looking up name:', trimmedName);
+    // Trigger Viem resolution
+    setIsLoadingViemEnsAddress(true);
+    console.log('Looking up name (Viem):', trimmedName);
+    try {
+      const address = await getEnsAddress(viemClient, { name: normalize(trimmedName) });
+      setViemResolvedAddress(address);
+      if (!address) {
+        setViemNameError('No address found for this ENS name.');
+      } else {
+        setViemNameError(null); // Clear error on success
+      }
+    } catch (e: any) {
+      console.error('Viem ENS address lookup error:', e);
+      setViemNameError(`ENS lookup failed: ${e.message}`);
+    } finally {
+      setIsLoadingViemEnsAddress(false);
+    }
   };
 
-  // Handle address to name resolution
-  const handleResolveName = () => {
-    setResolvedName(null);
-    setAddressError(null);
-    setShowAddressAvatar(false);
+  // Handle address to name resolution (using Viem)
+  const handleResolveName = async () => {
+    // Reset Viem states
+    setViemResolvedName(null);
+    setViemAddressError(null);
+    setViemAddressAvatar(null);
+    setShowViemAddressAvatar(false);
     
     const trimmedAddress = addressInput.trim();
     setAddressInput(trimmedAddress);
 
     if (!trimmedAddress) {
-      setAddressError('Please enter an EVM 0x address.');
+      setViemAddressError('Please enter an EVM 0x address.');
       return;
     }
 
     if (!isAddress(trimmedAddress)) {
-      setAddressError('Invalid EVM 0x address format.');
+      setViemAddressError('Invalid EVM 0x address format.');
       return;
     }
     
-    // Trigger resolution
-    setShouldResolveName(true);
-    console.log('Looking up address:', trimmedAddress);
-  };
+    // Trigger Viem resolution
+    setIsLoadingViemEnsName(true);
+    console.log('--- Viem getEnsName() Path ---');
+    console.log('Input Address for Viem getEnsName():', trimmedAddress as Address);
+    
+    // Optional: Keep debug logging if useful
+    const viemStyleReverseNameString = `${trimmedAddress.toLowerCase().substring(2)}.addr.reverse`;
+    const dnsEncodedViemStyleReverseName = toHex(packetToBytes(viemStyleReverseNameString));
+    const iNameResolverSelector = '0x691f3431';
+    console.log('Viem will construct this reverse name string:', viemStyleReverseNameString);
+    console.log('Viem will DNS-encode it to (arg1 for ZUR.resolve):', dnsEncodedViemStyleReverseName);
+    console.log('Viem will use INameResolver selector (arg2 for ZUR.resolve):', iNameResolverSelector);
+    console.log('Target Universal Resolver for Viem call:', viemClient.chain?.contracts?.ensUniversalResolver?.address || 'Using viemClient default behavior for Zilliqa');
 
-  // Handle avatar lookup for address
-  const handleAddressAvatar = () => {
-    if (resolvedName) {
-      setShowAddressAvatar(true);
+    try {
+      console.time('Viem getEnsName execution');
+      const name = await getEnsName(viemClient, { address: trimmedAddress as Address });
+      console.timeEnd('Viem getEnsName execution');
+      console.log('Result from Viem getEnsName():', name);
+
+      setViemResolvedName(name);
+      if (!name) {
+        setViemAddressError('No ENS name found for this address (e.g., reverse record not set).');
+      } else {
+        setViemAddressError(null); // Clear error on success
+      }
+    } catch (e: any) {
+      console.error('Viem ENS name lookup error:', e);
+      setViemAddressError(`ENS lookup failed: ${e.message}`);
+    } finally {
+      setIsLoadingViemEnsName(false);
     }
   };
 
-  // Handle avatar lookup for name
-  const handleNameAvatar = () => {
-    if (resolvedAddress) {
-      setShowNameAvatar(true);
+  // Fetch Viem avatar for a name (triggered after address resolution)
+  const handleViemNameAvatar = async () => {
+    // Use the input name that was used for address resolution
+    const trimmedName = nameInput.trim(); 
+    if (!trimmedName || !viemResolvedAddress) return; // Need name and resolved address
+
+    setIsLoadingViemNameAvatar(true);
+    setViemNameAvatar(null); // Reset avatar before fetching
+    setShowViemNameAvatar(true); // Show loading state
+    
+    try {
+      console.log('Fetching avatar for name via Viem (using getEnsAvatar):', trimmedName);
+      
+      let normalizedName;
+      try {
+        normalizedName = normalize(trimmedName);
+      } catch (error) {
+        console.error('Error normalizing name:', error);
+        setViemNameAvatar(null); 
+        // setViemNameError('Invalid ENS name format for avatar lookup'); // Optionally show error
+        setShowViemNameAvatar(false); // Hide avatar display area
+        setIsLoadingViemNameAvatar(false); // Ensure loading stops
+        return; // Stop execution
+      }
+      
+      const avatarUrl = await getEnsAvatar(viemClient, {
+        name: normalizedName,
+      });
+      
+      console.log('Viem getEnsAvatar result for name:', avatarUrl);
+      setViemNameAvatar(avatarUrl); // Set avatar URL (null if not found)
+      
+    } catch (e: any) {
+      console.error('Error fetching Viem avatar for name:', e);
+      setViemNameAvatar(null); 
+      // setViemNameError(`Avatar lookup failed: ${e.message}`); // Optionally show error
+    } finally {
+      setIsLoadingViemNameAvatar(false);
     }
   };
 
-  // Turn off resolution when input changes
+  // Fetch Viem avatar for an address (triggered after name resolution)
+  const handleViemAddressAvatar = async () => {
+    if (!viemResolvedName) return; // Need the resolved name to look up avatar
+    
+    setIsLoadingViemAddressAvatar(true);
+    setViemAddressAvatar(null); // Reset avatar before fetching
+    setShowViemAddressAvatar(true); // Show loading state
+    
+    try {
+      console.log('Fetching avatar for address via Viem (using getEnsAvatar on resolved name):', viemResolvedName);
+      
+      // Note: getEnsAvatar requires the name, not the address. 
+      // We use the name we just resolved.
+      const avatarUrl = await getEnsAvatar(viemClient, {
+        name: viemResolvedName, 
+      });
+      
+      console.log('Viem getEnsAvatar result for address:', avatarUrl);
+      setViemAddressAvatar(avatarUrl); // Set avatar URL (null if not found)
+
+    } catch (e: any) {
+      console.error('Error fetching Viem avatar for address:', e);
+      setViemAddressAvatar(null); 
+      // setViemAddressError(`Avatar lookup failed: ${e.message}`); // Optionally show error
+    } finally {
+      setIsLoadingViemAddressAvatar(false);
+    }
+  };
+
+  // Fetch ERC20 Token Details
+  const handleFetchTokenDetails = async () => {
+    setTokenDetails(null);
+    setTokenDetailsError(null);
+    setIsLoadingTokenDetails(true);
+
+    const trimmedAddress = tokenAddressInput.trim();
+    setTokenAddressInput(trimmedAddress);
+
+    if (!trimmedAddress) {
+      setTokenDetailsError('Please enter a token contract address.');
+      setIsLoadingTokenDetails(false);
+      return;
+    }
+
+    if (!isAddress(trimmedAddress)) {
+      setTokenDetailsError('Invalid EVM 0x address format.');
+      setIsLoadingTokenDetails(false);
+      return;
+    }
+
+    try {
+      console.log('Fetching ERC20 details for address:', trimmedAddress);
+      
+      // Use Promise.all to fetch details concurrently
+      const [name, symbol, decimals, totalSupply] = await Promise.all([
+        viemClient.readContract({
+          address: trimmedAddress as Address,
+          abi: erc20Abi,
+          functionName: 'name',
+        }),
+        viemClient.readContract({
+          address: trimmedAddress as Address,
+          abi: erc20Abi,
+          functionName: 'symbol',
+        }),
+        viemClient.readContract({
+          address: trimmedAddress as Address,
+          abi: erc20Abi,
+          functionName: 'decimals',
+        }),
+        viemClient.readContract({
+          address: trimmedAddress as Address,
+          abi: erc20Abi,
+          functionName: 'totalSupply',
+        }),
+      ]);
+
+      console.log('Fetched details:', { name, symbol, decimals, totalSupply });
+
+      // Format totalSupply using decimals
+      const formattedTotalSupply = typeof decimals === 'number' && totalSupply !== undefined
+        ? formatUnits(totalSupply, decimals)
+        : 'N/A (could not format)';
+
+      setTokenDetails({ 
+        name: name || 'N/A', 
+        symbol: symbol || 'N/A', 
+        decimals: typeof decimals === 'number' ? decimals : null, // Store raw decimals
+        totalSupply: formattedTotalSupply, // Store formatted supply
+      });
+      setTokenDetailsError(null); // Clear error on success
+
+    } catch (e: any) {
+      console.error('Error fetching token details:', e);
+      // Better error handling for contract calls
+      if (e.message.includes('reverted') || e.message.includes('call exception')) {
+          setTokenDetailsError('Contract call failed. Is this a valid ERC20 contract address on Zilliqa?');
+      } else {
+          setTokenDetailsError(`Failed to fetch details: ${e.message}`);
+      }
+      setTokenDetails(null);
+    } finally {
+      setIsLoadingTokenDetails(false);
+    }
+  };
+
+  // Clear results when input changes
   useEffect(() => {
-    setShouldResolveAddress(false);
-    setShowNameAvatar(false);
+    // Reset Viem states for name resolution
+    setViemResolvedAddress(null);
+    setViemNameError(null);
+    setViemNameAvatar(null);
+    setShowViemNameAvatar(false);
+    setIsLoadingViemEnsAddress(false); // Reset loading state if needed
+    setIsLoadingViemNameAvatar(false);
   }, [nameInput]);
 
   useEffect(() => {
-    setShouldResolveName(false);
-    setShowAddressAvatar(false);
+    // Reset Viem states for address resolution
+    setViemResolvedName(null);
+    setViemAddressError(null);
+    setViemAddressAvatar(null);
+    setShowViemAddressAvatar(false);
+    setIsLoadingViemEnsName(false); // Reset loading state if needed
+    setIsLoadingViemAddressAvatar(false);
   }, [addressInput]);
 
-  // Update state when ENS address lookup completes
+  // Clear token details when token address input changes
   useEffect(() => {
-    console.log('ENS address result:', ensAddress);
-    
-    if (!isLoadingEnsAddress && shouldResolveAddress) {
-      if (errorEnsAddress) {
-        setNameError(`ENS Address lookup failed: ${errorEnsAddress.message}`);
-        setResolvedAddress(null);
-      } else if (ensAddress) {
-        setResolvedAddress(ensAddress);
-        setNameError(null); // Clear any previous error when we have a result
-      } else if (nameInput.trim().length > 0) {
-        setNameError('No address found for this ENS name.');
-        setResolvedAddress(null);
-      }
-    }
-  }, [ensAddress, errorEnsAddress, isLoadingEnsAddress, nameInput, shouldResolveAddress]);
-
-  // Update state when ENS name lookup completes
-  useEffect(() => {
-    console.log('ENS name result:', ensName);
-    console.log('Input address:', addressInput.trim());
-    console.log('Is address valid:', isAddress(addressInput.trim()));
-    
-    if (!isLoadingEnsName && shouldResolveName) {
-      if (ensName) {
-        setResolvedName(ensName);
-        setAddressError(null); // Clear any previous error when we have a result
-      } else if (addressInput.trim().length > 0 && isAddress(addressInput.trim())) {
-        // Try logging a detailed debug message
-        console.log('No ENS name found for address:', addressInput.trim());
-        console.log('But address is valid, setting error message');
-        
-        // Provide a more specific error message
-        setAddressError('No ENS name found for this address. The address might not have a reverse record set.');
-        setResolvedName(null);
-      }
-    }
-  }, [ensName, isLoadingEnsName, addressInput, shouldResolveName]);
-
-  // Track avatar resolution
-  useEffect(() => {
-    console.log('Avatar for address:', addressAvatar);
-  }, [addressAvatar]);
-
-  useEffect(() => {
-    console.log('Avatar for name:', nameAvatar);
-  }, [nameAvatar]);
+    setTokenDetails(null);
+    setTokenDetailsError(null);
+    setIsLoadingTokenDetails(false);
+  }, [tokenAddressInput]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen py-2">
+    <div className="flex flex-col items-center justify-center">
       <main className="flex flex-col items-center justify-center flex-1 px-5 w-full max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold mb-8">
-          Zilnames ENS Resolver
-        </h1>
+        <h2 className="text-xl font-semibold mb-4">
+          Zilnames Resolver (Viem)
+        </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
           {/* ENS Name to Address Section */}
@@ -209,30 +356,31 @@ export default function Home() {
 
             <button
               onClick={handleResolveAddress}
-              disabled={isLoadingEnsAddress || !nameInput.trim()}
+              disabled={isLoadingViemEnsAddress || !nameInput.trim()}
               className="w-full px-4 py-2 mb-4 font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
             >
-              {isLoadingEnsAddress ? 'Resolving...' : 'Resolve Address'}
+              {isLoadingViemEnsAddress ? 'Resolving...' : 'Resolve Address'}
             </button>
 
-            {resolvedAddress && (
-              <div className="mt-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-md">
+            {/* Viem ENS Address Resolution Results */}
+            {viemResolvedAddress && (
+              <div className="mt-4 p-4 bg-blue-100 border border-blue-400 text-blue-700 rounded-md">
                 <p className="font-semibold">Address:</p>
-                <p className="break-all">{resolvedAddress}</p>
+                <p className="break-all">{viemResolvedAddress}</p>
                 <button
-                  onClick={handleNameAvatar}
-                  disabled={isLoadingNameAvatar}
-                  className="mt-2 px-3 py-1 text-sm font-medium text-indigo-600 bg-indigo-100 border border-indigo-300 rounded-md hover:bg-indigo-200 disabled:opacity-50"
+                  onClick={handleViemNameAvatar}
+                  disabled={isLoadingViemNameAvatar}
+                  className="mt-2 px-3 py-1 text-sm font-medium text-blue-600 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 disabled:opacity-50"
                 >
-                  {isLoadingNameAvatar ? 'Loading...' : 'View Avatar'}
+                  {isLoadingViemNameAvatar ? 'Loading Avatar...' : 'View Avatar'}
                 </button>
-                {showNameAvatar && (
+                {showViemNameAvatar && (
                   <div className="mt-2">
-                    {nameAvatar ? (
+                    {isLoadingViemNameAvatar ? <p className="text-sm text-gray-500">Loading avatar...</p> : viemNameAvatar ? (
                       <div className="flex justify-center">
                         <img 
-                          src={nameAvatar} 
-                          alt="ENS Avatar" 
+                          src={viemNameAvatar} 
+                          alt="Zilnames Avatar" 
                           className="h-16 w-16 rounded-full object-cover"
                         />
                       </div>
@@ -244,10 +392,11 @@ export default function Home() {
               </div>
             )}
 
-            {nameError && (
-              <div className="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-md">
+            {/* Viem Name Error Display */}
+            {viemNameError && (
+              <div className="mt-4 p-4 bg-orange-100 border border-orange-400 text-orange-700 rounded-md">
                 <p className="font-semibold">Error:</p>
-                <p>{nameError}</p>
+                <p>{viemNameError}</p>
               </div>
             )}
           </div>
@@ -267,29 +416,30 @@ export default function Home() {
 
             <button
               onClick={handleResolveName}
-              disabled={isLoadingEnsName || !addressInput.trim()}
+              disabled={isLoadingViemEnsName || !addressInput.trim()}
               className="w-full px-4 py-2 mb-4 font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
             >
-              {isLoadingEnsName ? 'Resolving...' : 'Resolve Zilname'}
+              {isLoadingViemEnsName ? 'Resolving...' : 'Resolve Name'}
             </button>
 
-            {resolvedName && (
-              <div className="mt-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-md">
-                <p className="font-semibold">ENS Name:</p>
-                <p className="break-all">{resolvedName}</p>
+            {/* Viem ENS Name Resolution Results */}
+            {viemResolvedName && (
+              <div className="mt-4 p-4 bg-blue-100 border border-blue-400 text-blue-700 rounded-md">
+                <p className="font-semibold">Zilname:</p>
+                <p className="break-all">{viemResolvedName}</p>
                 <button
-                  onClick={handleAddressAvatar}
-                  disabled={isLoadingAddressAvatar}
-                  className="mt-2 px-3 py-1 text-sm font-medium text-indigo-600 bg-indigo-100 border border-indigo-300 rounded-md hover:bg-indigo-200 disabled:opacity-50"
+                  onClick={handleViemAddressAvatar}
+                  disabled={isLoadingViemAddressAvatar}
+                  className="mt-2 px-3 py-1 text-sm font-medium text-blue-600 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 disabled:opacity-50"
                 >
-                  {isLoadingAddressAvatar ? 'Loading...' : 'View Avatar'}
+                  {isLoadingViemAddressAvatar ? 'Loading Avatar...' : 'View Avatar'}
                 </button>
-                {showAddressAvatar && (
+                {showViemAddressAvatar && (
                   <div className="mt-2">
-                    {addressAvatar ? (
+                     {isLoadingViemAddressAvatar ? <p className="text-sm text-gray-500">Loading avatar...</p> : viemAddressAvatar ? (
                       <div className="flex justify-center">
                         <img 
-                          src={addressAvatar} 
+                          src={viemAddressAvatar} 
                           alt="ENS Avatar" 
                           className="h-16 w-16 rounded-full object-cover"
                         />
@@ -301,15 +451,57 @@ export default function Home() {
                 )}
               </div>
             )}
-
-            {addressError && (
-              <div className="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-md">
+            
+            {/* Viem Address Error Display */}
+            {viemAddressError && (
+              <div className="mt-4 p-4 bg-orange-100 border border-orange-400 text-orange-700 rounded-md">
                 <p className="font-semibold">Error:</p>
-                <p>{addressError}</p>
+                <p>{viemAddressError}</p>
               </div>
             )}
           </div>
         </div>
+
+        {/* ERC20 Token Details Section - Added Below */}
+        <div className="mt-8 w-full p-6 border border-gray-200 rounded-lg shadow-sm">
+          <h2 className="text-xl font-semibold mb-4">ERC20 Token Details (Demo on calling smart contracts)</h2>
+          <div className="mb-4">
+            <input
+              type="text"
+              value={tokenAddressInput}
+              onChange={(e) => setTokenAddressInput(e.target.value)}
+              placeholder="Enter ERC20 Token Address (0x...)"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-black"
+            />
+          </div>
+
+          <button
+            onClick={handleFetchTokenDetails}
+            disabled={isLoadingTokenDetails || !tokenAddressInput.trim()}
+            className="w-full px-4 py-2 mb-4 font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
+          >
+            {isLoadingTokenDetails ? 'Fetching...' : 'Get Token Details'}
+          </button>
+
+          {/* Token Details Results */}
+          {tokenDetails && (
+            <div className="mt-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-md">
+              <p><span className="font-semibold">Name:</span> {tokenDetails.name}</p>
+              <p><span className="font-semibold">Symbol:</span> {tokenDetails.symbol}</p>
+              <p><span className="font-semibold">Decimals:</span> {tokenDetails.decimals !== null ? tokenDetails.decimals : 'N/A'}</p>
+              <p><span className="font-semibold">Total Supply:</span> {tokenDetails.totalSupply}</p>
+            </div>
+          )}
+
+          {/* Token Details Error Display */}
+          {tokenDetailsError && (
+            <div className="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-md">
+              <p className="font-semibold">Error:</p>
+              <p>{tokenDetailsError}</p>
+            </div>
+          )}
+        </div>
+
       </main>
     </div>
   );

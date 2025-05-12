@@ -5,7 +5,7 @@ import { useAccount, useBalance, useDisconnect, useChainId } from 'wagmi';
 import { useState, useEffect, useRef } from 'react';
 import Name from './Name';
 import { formatUnits } from 'viem';
-import { getRoundedAmount } from '../lib/utils/getRoundedAmount';
+import { getRoundedAmount } from '@/lib/utils';
 import { CustomProfileDetails } from './CustomProfileDetails';
 import { defaultChain } from '@/config/wagmi';
 import dynamic from 'next/dynamic';

@@ -13,7 +13,7 @@ export const zilliqa = defineChain({
   },
   contracts: {
     ensUniversalResolver: {
-      address: "0xe32A0F3e3787B535719e8949Eb065F675eB96D25",
+      address: "0x2b6a7953c510392aE88c7C302a984460Daa8AF24",
     },
     ensRegistry: {
       address: "0x2196b67Ca97bBcA07C01c7Bdf4f35209CC615389",
