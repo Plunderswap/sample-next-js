@@ -336,6 +336,19 @@ export default function Home() {
   return (
     <div className="flex flex-col items-center justify-center">
       <main className="flex flex-col items-center justify-center flex-1 px-5 w-full max-w-4xl mx-auto">
+        {/* Added Title and Description */}
+        <h1 className="text-2xl font-bold mb-2 mt-8">
+          <a href="https://github.com/Plunderswap/sample-next-js" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 underline">
+            PlunderSwap Sample Next.js Project
+          </a>
+        </h1>
+        <p className="text-center mb-2 text-gray-600">
+          Brought to you by the PlunderSwap team, a little next.js demo of a site with Wagmi, Viem, Rainbowkit and ZilNames integrated!
+        </p>
+        <p className="text-center mb-8 text-gray-600">
+          Shows how to use Viem and Zilnames with customized Rainbowkit. A little read demo of calling Zilliqa EVM Smart Contracts as well!
+        </p>
+
         <h2 className="text-xl font-semibold mb-4">
           Zilnames Resolver (Viem)
         </h2>
